@@ -2,6 +2,14 @@
 
 Multi-user Telegram client built with Telethon, FastAPI, React, and PostgreSQL.
 
+## Intended Use
+
+This project is intended to provide API and MCP access to a personal Telegram account.
+
+Use is recommended *strictly* for personal needs and for making personal AI assistants more useful.
+
+Using this project to create spam, abuse Telegram, or perform any illegal activity is condemned and prohibited.
+
 ## Architecture
 
 ```text
