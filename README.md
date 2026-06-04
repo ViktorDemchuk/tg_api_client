@@ -12,13 +12,6 @@ Using this project to create spam, abuse Telegram, or perform any illegal activi
 
 ## Architecture
 
-```text
-Frontend (React) -> Traefik -> Backend (FastAPI) -> PostgreSQL
-                         |              |
-                         v              v
-                    MCP Server     Worker (sync)
-```
-
 The Docker stack contains six services:
 
 - `backend` - FastAPI REST API with JWT and API key authentication.
@@ -27,6 +20,33 @@ The Docker stack contains six services:
 - `mcp` - MCP SSE server for AI agent integration.
 - `postgres` - PostgreSQL 16 database.
 - `traefik` - reverse proxy for the web app, API, and MCP endpoint.
+
+External HTTP traffic enters through Traefik:
+
+| Request path | Routed to | Notes |
+| --- | --- | --- |
+| `/` | `web` | Static React dashboard served by nginx. |
+| `/api/*` | `backend` | FastAPI REST API. Traefik strips the `/api` prefix before forwarding. |
+| `/mcp/*` | `mcp` | SSE MCP endpoint for AI assistants and MCP clients. |
+
+Internal service relationships:
+
+| Source | Target | Purpose |
+| --- | --- | --- |
+| Browser dashboard | `/api/*` through Traefik | User-facing dashboard API calls. |
+| MCP client | `/mcp/*` through Traefik | MCP protocol connection. |
+| `mcp` | `backend` | Calls the backend REST API using `X-API-Key`. |
+| `backend` | `postgres` | Stores users, Telegram accounts, API keys, chats, messages, commands, and audit logs. |
+| `worker` | `postgres` | Polls queued Telegram commands and writes sync results. |
+| `worker` | Telegram | Uses Telethon/MTProto to authenticate accounts, sync chats/messages, and send Telegram actions. |
+
+Runtime notes:
+
+- The browser loads the React dashboard from `web` through Traefik.
+- Dashboard API calls go to `/api/*`; Traefik strips `/api` and forwards requests to `backend`.
+- MCP clients connect to `/mcp/*`; the `mcp` service calls the backend REST API with the user's API key.
+- The backend owns authentication, user/account management, API keys, audit logs, and cached Telegram data.
+- The worker does not call MCP. It communicates with the backend indirectly through PostgreSQL command and result records.
 
 ## Quick Start
 
