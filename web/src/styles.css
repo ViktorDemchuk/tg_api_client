@@ -1,0 +1,231 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══════════════════════════════════════════════════════════
+   PREMIUM GLASSMORPHISM DESIGN SYSTEM — TG API Client
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+  --gradient-brand: linear-gradient(135deg, #6366f1 0%, #06b6d4 100%);
+  --gradient-dark: linear-gradient(135deg, #090d16 0%, #111329 50%, #090d16 100%);
+  --glass-bg: rgba(15, 23, 42, 0.85); /* Darker, highly-contrasting background for perfect readability */
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99, 102, 241, 0.4) transparent;
+}
+
+body {
+  @apply bg-slate-950 text-slate-100 font-sans antialiased;
+  background: var(--gradient-dark);
+  min-height: 100vh;
+}
+
+/* ── Typography Contrast Fixes (WCAG AAA Compliance) ── */
+.text-slate-500 {
+  color: #94a3b8 !important; /* Force upgrade slate-500 to slate-400 for high-contrast visibility */
+}
+
+.text-slate-600 {
+  color: #cbd5e1 !important; /* Force upgrade slate-600 to slate-300 for high-contrast visibility */
+}
+
+/* ── Input Icon Alignment Fix ── */
+.input-with-icon {
+  padding-left: 2.75rem !important; /* Guarantees icons never overlap or step on the text */
+}
+
+/* ── Glass Card (High-Contrast Premium) ── */
+.glass-card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  @apply rounded-2xl;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.glass-card:hover {
+  border-color: rgba(99, 102, 241, 0.25);
+}
+
+/* ── Animated Gradient Background ── */
+.gradient-bg {
+  background: var(--gradient-dark);
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+}
+
+.gradient-bg::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(ellipse at 30% 50%, rgba(99, 102, 241, 0.12) 0%, transparent 50%),
+              radial-gradient(ellipse at 70% 50%, rgba(6, 182, 212, 0.08) 0%, transparent 50%);
+  animation: float 25s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  33% { transform: translate(2%, -2%) rotate(0.5deg); }
+  66% { transform: translate(-1%, 1%) rotate(-0.5deg); }
+}
+
+/* ── Status badges ── */
+.status-badge {
+  @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold;
+  backdrop-filter: blur(4px);
+}
+
+.status-authorized {
+  @apply bg-emerald-500/20 text-emerald-300 border border-emerald-500/35;
+}
+
+.status-pending {
+  @apply bg-amber-500/20 text-amber-300 border border-amber-500/35;
+}
+
+.status-code_sent {
+  @apply bg-blue-500/20 text-blue-300 border border-blue-500/35;
+}
+
+.status-error, .status-disconnected {
+  @apply bg-red-500/20 text-red-300 border border-red-500/35;
+}
+
+/* ── Button styles (Premium Premium Glow) ── */
+.btn-primary {
+  @apply px-4 py-2.5 rounded-xl font-semibold text-white transition-all duration-200 cursor-pointer;
+  background: var(--gradient-brand);
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.35);
+}
+
+.btn-primary:hover:not(:disabled) {
+  box-shadow: 0 6px 25px rgba(99, 102, 241, 0.55);
+  transform: translateY(-1.5px);
+  filter: brightness(1.15);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  @apply px-4 py-2.5 rounded-xl font-semibold text-slate-200 bg-slate-800/60 border border-slate-700/60 
+         hover:bg-slate-700/70 hover:border-slate-500/70 transition-all duration-200 cursor-pointer;
+}
+
+.btn-danger {
+  @apply px-4 py-2.5 rounded-xl font-semibold text-red-300 bg-red-500/15 border border-red-500/35
+         hover:bg-red-500/25 transition-all duration-200 cursor-pointer;
+}
+
+/* ── Input styles ── */
+.input-field {
+  @apply w-full px-4 py-3 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-100
+         placeholder-slate-400 focus:outline-none focus:border-brand-500/70 focus:ring-2 focus:ring-brand-500/25
+         transition-all duration-200;
+}
+
+/* ── Sidebar ── */
+.sidebar-link {
+  @apply flex items-center gap-3 px-4 py-3 rounded-xl text-slate-300 
+         hover:text-slate-100 hover:bg-white/5 transition-all duration-200;
+}
+
+.sidebar-link.active {
+  @apply text-white bg-brand-500/25 border border-brand-500/40;
+}
+
+/* ── Table ── */
+.data-table {
+  @apply w-full text-sm border-collapse;
+}
+
+.data-table thead {
+  @apply text-slate-300 text-xs uppercase tracking-wider bg-slate-900/40;
+}
+
+.data-table th {
+  @apply px-4 py-3.5 text-left font-semibold border-b border-slate-800/70;
+}
+
+.data-table td {
+  @apply px-4 py-3.5 border-b border-slate-950/40 text-slate-200;
+}
+
+.data-table tbody tr {
+  @apply hover:bg-white/[0.03] transition-colors duration-150;
+}
+
+/* ── Animations ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-15px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-slide-in {
+  animation: slideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.45); }
+  50% { box-shadow: 0 0 0 10px rgba(99, 102, 241, 0); }
+}
+
+.pulse-glow {
+  animation: pulse-glow 2.5s infinite;
+}
+
+/* ── Chat message bubbles ── */
+.message-bubble {
+  @apply px-4 py-3 rounded-2xl max-w-[80%] shadow-md;
+}
+
+.message-incoming {
+  @apply bg-slate-800/90 border border-slate-700/40 rounded-tl-md text-slate-100;
+}
+
+.message-outgoing {
+  @apply bg-brand-500/40 border border-brand-500/40 rounded-tr-md ml-auto text-slate-100;
+}
+
+/* ── Modal overlay ── */
+.modal-overlay {
+  @apply fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4;
+}
+
+.modal-content {
+  @apply glass-card p-6 w-full max-w-md animate-fade-in;
+}
+
+/* ── Stat cards ── */
+.stat-card {
+  @apply glass-card p-6 flex flex-col gap-2;
+}
+
+.stat-card .stat-value {
+  @apply text-4xl font-extrabold bg-gradient-to-r from-brand-400 to-cyan-400 bg-clip-text text-transparent;
+}
+
+.stat-card .stat-label {
+  @apply text-sm font-semibold text-slate-200;
+}

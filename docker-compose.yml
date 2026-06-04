@@ -1,0 +1,117 @@
+x-app-env: &app-env
+  DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://${POSTGRES_USER:-tg_client}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-tg_client}}
+  BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:3000,http://localhost:8080}
+  API_ROOT_PATH: ${API_ROOT_PATH:-/api}
+  JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-generate-a-random-secret}
+  SESSION_ENCRYPTION_KEY: ${SESSION_ENCRYPTION_KEY:-}
+  TELEGRAM_API_ID: ${TELEGRAM_API_ID:-}
+  TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:-}
+  TELEGRAM_DEVICE_MODEL: ${TELEGRAM_DEVICE_MODEL:-}
+  TELEGRAM_SYSTEM_VERSION: ${TELEGRAM_SYSTEM_VERSION:-}
+  TELEGRAM_APP_VERSION: ${TELEGRAM_APP_VERSION:-}
+  ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@localhost}
+  ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me}
+  MAX_ACCOUNTS_PER_USER: ${MAX_ACCOUNTS_PER_USER:-5}
+  SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL_SECONDS:-120}
+  MESSAGES_PER_CHAT: ${MESSAGES_PER_CHAT:-100}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  PYTHONPATH: /app
+
+services:
+  traefik:
+    image: traefik:v3.2
+    command:
+      - "--api.dashboard=false"
+      - "--entrypoints.web.address=:80"
+      - "--providers.file.filename=/etc/traefik/dynamic.yml"
+      - "--ping=true"
+    ports:
+      - "${TRAEFIK_HTTP_PORT:-8080}:80"
+    volumes:
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+      mcp:
+        condition: service_started
+    healthcheck:
+      test: [ "CMD", "traefik", "healthcheck", "--ping" ]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tg_client}
+      POSTGRES_USER: ${POSTGRES_USER:-tg_client}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tg_client} -d ${POSTGRES_DB:-tg_client}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment: *app-env
+    volumes:
+      - ./backend:/app
+    command: [ "sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload" ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)" ]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.worker
+    environment: *app-env
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+
+  mcp:
+    build:
+      context: .
+      dockerfile: mcp/Dockerfile
+    environment:
+      SENTINEL_API_URL: http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://127.0.0.1/health" ]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pg_data:

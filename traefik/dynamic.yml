@@ -1,0 +1,39 @@
+http:
+  routers:
+    api:
+      rule: "PathPrefix(`/api`)"
+      entryPoints: ["web"]
+      service: backend
+      middlewares: ["strip-api"]
+
+    mcp:
+      rule: "PathPrefix(`/mcp`)"
+      entryPoints: ["web"]
+      service: mcp
+
+    web:
+      rule: "PathPrefix(`/`)"
+      entryPoints: ["web"]
+      service: web
+      priority: 1
+
+  middlewares:
+    strip-api:
+      stripPrefix:
+        prefixes: ["/api"]
+
+  services:
+    backend:
+      loadBalancer:
+        servers:
+          - url: "http://backend:8000"
+
+    mcp:
+      loadBalancer:
+        servers:
+          - url: "http://mcp:8001"
+
+    web:
+      loadBalancer:
+        servers:
+          - url: "http://web:80"
