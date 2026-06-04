@@ -50,6 +50,51 @@ The Docker stack contains six services:
 
 The initial admin account is created from `ADMIN_EMAIL` and `ADMIN_PASSWORD` when the backend starts and no admin user exists yet.
 
+## Telegram App Credentials
+
+This project uses Telegram's MTProto API through Telethon. It needs a Telegram application `api_id` and `api_hash`; these are not the same thing as a BotFather bot token.
+
+Create or view your Telegram app credentials:
+
+1. Open [my.telegram.org](https://my.telegram.org) and log in with the Telegram account that will own the app credentials.
+2. Enter your phone number in international format, for example `+15551234567`.
+3. Telegram sends a login code to your Telegram app, not usually by SMS. Enter that code on the website.
+4. Open **API development tools**.
+5. If you do not have an app yet, create one:
+   - **App title**: any readable name, for example `TG API Client`.
+   - **Short name**: a short identifier, for example `tg_api_client`.
+   - **URL**: can be your project/repository URL, or a placeholder if Telegram allows it for your account.
+   - **Platform**: choose `Desktop` or the closest match to how you deploy this service.
+   - **Description**: a short description of your usage.
+6. After saving, Telegram shows:
+   - **App api_id** -> put this numeric value into `TELEGRAM_API_ID`.
+   - **App api_hash** -> put this string into `TELEGRAM_API_HASH`.
+
+Telegram's official instructions are here: [Obtaining api_id](https://core.telegram.org/api/obtaining_api_id).
+
+Example:
+
+```env
+TELEGRAM_API_ID=12345678
+TELEGRAM_API_HASH=0123456789abcdef0123456789abcdef
+```
+
+Optional device metadata:
+
+```env
+TELEGRAM_DEVICE_MODEL=Desktop
+TELEGRAM_SYSTEM_VERSION=Windows 10
+TELEGRAM_APP_VERSION=4.16.8
+```
+
+These three values are passed to Telethon when it creates a Telegram client session. They identify the client device/app shown to Telegram. You can leave them empty in `.env`; the backend defaults are `Desktop`, `Windows 10`, and `4.16.8`. For production, set them to something honest and stable, for example:
+
+- `TELEGRAM_DEVICE_MODEL=Server`
+- `TELEGRAM_SYSTEM_VERSION=Ubuntu 24.04`
+- `TELEGRAM_APP_VERSION=1.0.0`
+
+Keep `TELEGRAM_API_HASH` private. If it is committed, leaked, or shared publicly, create new Telegram app credentials and rotate your `.env`.
+
 ## Security Notes
 
 - Do not commit `.env`. It can contain Telegram API credentials, database passwords, JWT secrets, and session encryption keys.
