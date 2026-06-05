@@ -72,11 +72,17 @@ class TelegramSubmitCodeRequest(BaseModel):
     password: str | None = Field(default=None, min_length=1, max_length=256)
 
 
+class TelegramSubmitPasswordRequest(BaseModel):
+    password: str = Field(min_length=1, max_length=256)
+
+
 class TelegramAuthResult(BaseModel):
     status: str
     authorized: bool = False
     needs_password: bool = False
     phone: str | None = None
+    account_id: int | None = None
+    qr_link: str | None = None
 
 
 class TelegramSessionExport(BaseModel):

@@ -149,6 +149,130 @@ async def handle_submit_code(
     return {"status": "authorized" if authorized else "not_authorized", "authorized": authorized}
 
 
+async def handle_request_qr(
+    worker,
+    db: Session,
+    account: TelegramAccount,
+) -> dict:
+    """Request a Telegram login QR code."""
+    import asyncio
+    if not worker.client.is_connected():
+        await worker.client.connect()
+
+    if await worker.client.is_user_authorized():
+        session_string = worker.client.session.save()
+        save_session_string(db, account, session_string)
+        account.status = TelegramAccountStatus.authorized
+        account.last_error = None
+        me = await worker.client.get_me()
+        if me:
+            account.telegram_user_id = me.id
+            account.display_name = _display_name(me)
+        db.commit()
+        return {"status": "already_authorized", "authorized": True, "phone": me.phone if me else None, "account_id": account.id}
+
+    worker.qr_login = await worker.client.qr_login()
+    logger.info("QR login URL generated: %s", worker.qr_login.url)
+    
+    return {"status": "qr_generated", "authorized": False, "qr_link": worker.qr_login.url}
+
+
+async def _complete_qr_auth(worker, db: Session, account: TelegramAccount) -> dict:
+    from sqlalchemy import select
+    me = await worker.client.get_me()
+    phone = me.phone if me.phone else f"+{me.id}"
+    
+    existing = db.scalar(
+        select(TelegramAccount).where(
+            TelegramAccount.user_id == account.user_id,
+            TelegramAccount.phone == phone,
+            TelegramAccount.id != account.id
+        )
+    )
+    
+    session_string = worker.client.session.save()
+    
+    if existing:
+        save_session_string(db, existing, session_string)
+        existing.status = TelegramAccountStatus.authorized
+        existing.telegram_user_id = me.id
+        existing.display_name = _display_name(me)
+        existing.last_error = None
+        
+        db.delete(account)
+        db.commit()
+        
+        return {
+            "status": "authorized",
+            "authorized": True,
+            "phone": phone,
+            "account_id": existing.id
+        }
+    else:
+        account.phone = phone
+        save_session_string(db, account, session_string)
+        account.status = TelegramAccountStatus.authorized
+        account.telegram_user_id = me.id
+        account.display_name = _display_name(me)
+        account.last_error = None
+        db.commit()
+        
+        return {
+            "status": "authorized",
+            "authorized": True,
+            "phone": phone,
+            "account_id": account.id
+        }
+
+
+async def handle_wait_qr(
+    worker,
+    db: Session,
+    account: TelegramAccount,
+) -> dict:
+    """Wait for the QR code to be scanned."""
+    import asyncio
+    
+    if not getattr(worker, "qr_login", None):
+        raise RuntimeError("QR login session not started. Please request QR first.")
+
+    # Check if already authorized (from previous tick or background scan)
+    if await worker.client.is_user_authorized():
+        return await _complete_qr_auth(worker, db, account)
+
+    try:
+        await worker.qr_login.wait(timeout=8)
+    except SessionPasswordNeededError:
+        return {"status": "password_required", "authorized": False, "needs_password": True}
+    except asyncio.TimeoutError:
+        # Check again in case it authorized right at the timeout boundary
+        if await worker.client.is_user_authorized():
+            return await _complete_qr_auth(worker, db, account)
+        return {"status": "pending", "authorized": False}
+
+    # If wait completed, check if we're now authorized
+    if await worker.client.is_user_authorized():
+        return await _complete_qr_auth(worker, db, account)
+        
+    return {"status": "not_authorized", "authorized": False}
+
+
+async def handle_submit_password(
+    worker,
+    db: Session,
+    account: TelegramAccount,
+    password: str,
+) -> dict:
+    """Submit 2FA password to complete sign-in."""
+    await worker.client.sign_in(password=password)
+    
+    authorized = await worker.client.is_user_authorized()
+    if authorized:
+        return await _complete_qr_auth(worker, db, account)
+            
+    return {"status": "not_authorized", "authorized": False}
+
+
 async def sync_chats(
     client: TelegramClient,
     db: Session,

@@ -18,6 +18,9 @@ from app.models import (
 from workers.telegram_manager import (
     handle_send_code,
     handle_submit_code,
+    handle_request_qr,
+    handle_wait_qr,
+    handle_submit_password,
     join_channel,
     leave_channel,
     load_session_string,
@@ -96,7 +99,7 @@ async def process_commands(workers: dict[int, AccountWorker]) -> None:
                     raise RuntimeError(f"Account {account_id} not found")
 
                 result = await _execute_command(
-                    worker.client, db, account, cmd_name, payload
+                    worker, db, account, cmd_name, payload
                 )
 
                 cmd = db.get(TelegramCommand, cmd_id)
@@ -105,7 +108,7 @@ async def process_commands(workers: dict[int, AccountWorker]) -> None:
                 cmd.error = None
                 
                 # Clear transient errors on success
-                if cmd_name in ("send_code", "submit_code"):
+                if cmd_name in ("send_code", "submit_code", "request_qr", "wait_qr", "submit_password"):
                     account.last_error = None
                 
                 db.commit()
@@ -128,9 +131,11 @@ async def process_commands(workers: dict[int, AccountWorker]) -> None:
 
 
 async def _execute_command(
-    client, db, account: TelegramAccount, cmd_name: str, payload: dict
+    worker, db, account: TelegramAccount, cmd_name: str, payload: dict
 ) -> dict:
     """Dispatch a command to the appropriate handler."""
+    client = worker.client
+
     if cmd_name == "send_code":
         return await handle_send_code(client, db, account, payload.get("phone", account.phone))
 
@@ -141,6 +146,15 @@ async def _execute_command(
             code=payload["code"],
             password=payload.get("password"),
         )
+
+    if cmd_name == "request_qr":
+        return await handle_request_qr(worker, db, account)
+
+    if cmd_name == "wait_qr":
+        return await handle_wait_qr(worker, db, account)
+
+    if cmd_name == "submit_password":
+        return await handle_submit_password(worker, db, account, payload["password"])
 
     if cmd_name == "sync_chats":
         await sync_chats(client, db, account)

@@ -21,6 +21,7 @@ from app.schemas import (
     TelegramAccountRead,
     TelegramAuthResult,
     TelegramSubmitCodeRequest,
+    TelegramSubmitPasswordRequest,
     TelegramSessionExport,
 )
 from app.security import decrypt_session
@@ -225,6 +226,128 @@ async def submit_code(
         authorized=bool(result.get("authorized")),
         needs_password=bool(result.get("needs_password")),
         phone=account.phone,
+    )
+
+
+@router.post("/accounts/qr", response_model=TelegramAccountRead, status_code=201)
+def add_account_qr(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TelegramAccountRead:
+    """Add a new pending Telegram account for QR login."""
+    count = db.scalar(
+        select(func.count(TelegramAccount.id)).where(TelegramAccount.user_id == user.id)
+    ) or 0
+    if count >= settings.max_accounts_per_user:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Maximum {settings.max_accounts_per_user} accounts per user",
+        )
+
+    import secrets
+    placeholder_phone = f"+QR_PENDING_{secrets.token_hex(8)}"
+
+    account = TelegramAccount(
+        user_id=user.id,
+        phone=placeholder_phone,
+        status=TelegramAccountStatus.pending,
+    )
+    db.add(account)
+    db.flush()
+
+    # Create empty session record
+    session = TelegramSession(telegram_account_id=account.id)
+    db.add(session)
+
+    audit_log(
+        db, user.id, "telegram.add_account_qr",
+        target_type="telegram_account", target_id=str(account.id),
+        details={"phone": placeholder_phone},
+        ip_address=request.client.host if request.client else None,
+    )
+    db.commit()
+    db.refresh(account)
+    return TelegramAccountRead.model_validate(account)
+
+
+@router.post("/accounts/{account_id}/qr-request", response_model=TelegramAuthResult)
+async def qr_request(
+    account_id: int,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TelegramAuthResult:
+    """Request a QR code login link for the account."""
+    account = verify_active_account(db, user, account_id)
+
+    audit_log(
+        db, user.id, "telegram.qr_request",
+        target_type="telegram_account", target_id=str(account.id),
+        ip_address=request.client.host if request.client else None,
+    )
+    db.commit()
+
+    result = await _run_telegram_command(db, account.id, "request_qr", timeout_seconds=30)
+    return TelegramAuthResult(
+        status=result.get("status", "pending"),
+        authorized=bool(result.get("authorized")),
+        qr_link=result.get("qr_link"),
+        account_id=account.id,
+    )
+
+
+@router.post("/accounts/{account_id}/qr-wait", response_model=TelegramAuthResult)
+async def qr_wait(
+    account_id: int,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TelegramAuthResult:
+    """Wait for the QR code to be scanned."""
+    account = verify_active_account(db, user, account_id)
+
+    result = await _run_telegram_command(db, account.id, "wait_qr", timeout_seconds=15)
+    final_account_id = result.get("account_id", account.id)
+
+    return TelegramAuthResult(
+        status=result.get("status", "pending"),
+        authorized=bool(result.get("authorized")),
+        needs_password=bool(result.get("needs_password")),
+        phone=result.get("phone"),
+        account_id=final_account_id,
+    )
+
+
+@router.post("/accounts/{account_id}/qr-password", response_model=TelegramAuthResult)
+async def qr_password(
+    account_id: int,
+    payload: TelegramSubmitPasswordRequest,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TelegramAuthResult:
+    """Submit the 2FA password to complete the QR code login."""
+    account = verify_active_account(db, user, account_id)
+
+    audit_log(
+        db, user.id, "telegram.qr_password",
+        target_type="telegram_account", target_id=str(account.id),
+        ip_address=request.client.host if request.client else None,
+    )
+    db.commit()
+
+    result = await _run_telegram_command(
+        db, account.id, "submit_password",
+        {"password": payload.password},
+    )
+    final_account_id = result.get("account_id", account.id)
+
+    return TelegramAuthResult(
+        status=result.get("status", "not_authorized"),
+        authorized=bool(result.get("authorized")),
+        phone=result.get("phone"),
+        account_id=final_account_id,
     )
 
 

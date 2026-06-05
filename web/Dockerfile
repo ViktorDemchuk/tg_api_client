@@ -5,7 +5,7 @@ WORKDIR /app
 ARG VITE_API_BASE_URL=/api
 
 COPY web/package.json web/package-lock.json* ./
-RUN npm ci
+RUN npm install --legacy-peer-deps
 
 COPY web/ .
 RUN VITE_API_BASE_URL=$VITE_API_BASE_URL npm run build
