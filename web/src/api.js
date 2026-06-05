@@ -68,6 +68,9 @@ class ApiClient {
   addAccount(phone) {
     return this.request('POST', '/telegram/accounts', { phone });
   }
+  addQrAccount() {
+    return this.request('POST', '/telegram/accounts/qr');
+  }
   deleteAccount(id) {
     return this.request('DELETE', `/telegram/accounts/${id}`);
   }
@@ -80,6 +83,15 @@ class ApiClient {
   }
   submitCode(accountId, code, password = null) {
     return this.request('POST', `/telegram/accounts/${accountId}/submit-code`, { code, password });
+  }
+  qrRequest(accountId) {
+    return this.request('POST', `/telegram/accounts/${accountId}/qr-request`);
+  }
+  qrWait(accountId) {
+    return this.request('POST', `/telegram/accounts/${accountId}/qr-wait`);
+  }
+  qrSubmitPassword(accountId, password) {
+    return this.request('POST', `/telegram/accounts/${accountId}/qr-password`, { password });
   }
   disconnectAccount(accountId) {
     return this.request('POST', `/telegram/accounts/${accountId}/disconnect`);
