@@ -198,6 +198,8 @@ body {
 /* ── Chat message bubbles ── */
 .message-bubble {
   @apply px-4 py-3 rounded-2xl max-w-[80%] shadow-md;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .message-incoming {
