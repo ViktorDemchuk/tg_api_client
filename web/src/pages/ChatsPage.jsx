@@ -159,7 +159,7 @@ export default function ChatsPage() {
   }
 
   return (
-    <div className="animate-fade-in h-[calc(100vh-4rem)]">
+    <div className="animate-fade-in h-[calc(100vh-4rem)] min-w-0 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
@@ -219,9 +219,9 @@ export default function ChatsPage() {
       </div>
 
       {/* Chat Layout */}
-      <div className="glass-card flex h-[calc(100%-4rem)] overflow-hidden">
+      <div className="glass-card flex h-[calc(100%-4rem)] overflow-hidden min-w-0">
         {/* Chat List Sidebar */}
-        <div className={`w-80 border-r border-slate-800/50 flex flex-col ${selectedChat ? 'hidden md:flex' : 'flex'}`}>
+        <div className={`w-80 flex-shrink-0 border-r border-slate-800/50 flex flex-col ${selectedChat ? 'hidden md:flex' : 'flex'}`}>
           {/* Join Channel Bar */}
           <div className="p-3 border-b border-slate-800/50 flex gap-2">
             <input
@@ -293,7 +293,7 @@ export default function ChatsPage() {
         </div>
 
         {/* Message View */}
-        <div className={`flex-1 flex flex-col ${selectedChat ? 'flex' : 'hidden md:flex'}`}>
+        <div className={`flex-1 flex flex-col min-w-0 ${selectedChat ? 'flex' : 'hidden md:flex'}`}>
           {selectedChat ? (
             <>
               {/* Chat Header */}
