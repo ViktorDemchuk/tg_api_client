@@ -85,6 +85,7 @@ class TelegramAccount(Base):
     __tablename__ = "telegram_accounts"
     __table_args__ = (
         UniqueConstraint("user_id", "phone", name="uq_telegram_accounts_user_phone"),
+        UniqueConstraint("user_id", "telegram_user_id", name="uq_telegram_accounts_user_tgid"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

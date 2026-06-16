@@ -4,9 +4,9 @@ import { Code2, Copy, Check, Terminal, Play, HelpCircle } from 'lucide-react';
 
 export default function ApiQuickstartPage() {
   const [accounts, setAccounts] = useState([]);
-  const [selectedAccountId, setSelectedAccountId] = useState('');
+  const [selectedTgUserId, setSelectedTgUserId] = useState('');
   const [chats, setChats] = useState([]);
-  const [selectedChatId, setSelectedChatId] = useState('');
+  const [selectedTgChatId, setSelectedTgChatId] = useState('');
   const [copied, setCopied] = useState(null);
   const [activeTab, setActiveTab] = useState('curl');
   const [authType, setAuthType] = useState('jwt'); // 'jwt' | 'apikey'
@@ -19,28 +19,28 @@ export default function ApiQuickstartPage() {
       const auth = accs.filter(a => a.status === 'authorized');
       setAccounts(auth);
       if (auth.length > 0) {
-        setSelectedAccountId(auth[0].id.toString());
+        setSelectedTgUserId(auth[0].telegram_user_id.toString());
       }
     });
   }, []);
 
   useEffect(() => {
-    if (!selectedAccountId) return;
-    api.listChats(Number(selectedAccountId)).then((chts) => {
+    if (!selectedTgUserId) return;
+    api.listChats(Number(selectedTgUserId)).then((chts) => {
       setChats(chts);
       if (chts.length > 0) {
-        setSelectedChatId(chts[0].id.toString());
+        setSelectedTgChatId(chts[0].telegram_chat_id.toString());
       } else {
-        setSelectedChatId('');
+        setSelectedTgChatId('');
       }
     }).catch(() => {
       setChats([]);
-      setSelectedChatId('');
+      setSelectedTgChatId('');
     });
-  }, [selectedAccountId]);
+  }, [selectedTgUserId]);
 
-  const accId = selectedAccountId || '<account_id>';
-  const chtId = selectedChatId || '<chat_db_id>';
+  const accId = selectedTgUserId || '<tg_user_id>';
+  const chtId = selectedTgChatId || '<tg_chat_id>';
 
   const headerName = authType === 'jwt' ? 'Authorization' : 'X-API-Key';
   const headerValue = authType === 'jwt' ? `Bearer ${token}` : 'YOUR_API_KEY';
@@ -230,14 +230,14 @@ print(response.json())`,
               2. Select Telegram Account
             </label>
             <select
-              value={selectedAccountId}
-              onChange={(e) => setSelectedAccountId(e.target.value)}
+              value={selectedTgUserId}
+              onChange={(e) => setSelectedTgUserId(e.target.value)}
               className="input-field text-sm w-full"
             >
               <option value="">-- No Account Selected --</option>
               {accounts.map((acc) => (
-                <option key={acc.id} value={acc.id}>
-                  {acc.display_name || acc.phone} (ID: {acc.id})
+                <option key={acc.telegram_user_id} value={acc.telegram_user_id}>
+                  {acc.display_name || acc.phone} (TG ID: {acc.telegram_user_id})
                 </option>
               ))}
             </select>
@@ -247,15 +247,15 @@ print(response.json())`,
               3. Select Channel / Chat
             </label>
             <select
-              value={selectedChatId}
-              onChange={(e) => setSelectedChatId(e.target.value)}
+              value={selectedTgChatId}
+              onChange={(e) => setSelectedTgChatId(e.target.value)}
               className="input-field text-sm w-full"
               disabled={chats.length === 0}
             >
               <option value="">-- No Chat Selected --</option>
               {chats.map((chat) => (
-                <option key={chat.id} value={chat.id}>
-                  {chat.title} (Local ID: {chat.id} · TG ID: {chat.telegram_chat_id})
+                <option key={chat.telegram_chat_id} value={chat.telegram_chat_id}>
+                  {chat.title} (TG ID: {chat.telegram_chat_id})
                 </option>
               ))}
             </select>

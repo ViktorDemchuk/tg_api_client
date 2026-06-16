@@ -29,7 +29,7 @@ const chatTypeIcon = (type) => {
 export default function ChatsPage() {
   const { accountId: routeAccountId } = useParams();
   const [accounts, setAccounts] = useState([]);
-  const [selectedAccountId, setSelectedAccountId] = useState(routeAccountId ? Number(routeAccountId) : null);
+  const [selectedTgUserId, setSelectedTgUserId] = useState(routeAccountId ? Number(routeAccountId) : null);
   const [chats, setChats] = useState([]);
   const [selectedChat, setSelectedChat] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -47,42 +47,42 @@ export default function ChatsPage() {
     api.listAccounts().then((accs) => {
       const authorized = accs.filter((a) => a.status === 'authorized');
       setAccounts(authorized);
-      if (!selectedAccountId && authorized.length > 0) {
-        setSelectedAccountId(authorized[0].id);
+      if (!selectedTgUserId && authorized.length > 0) {
+        setSelectedTgUserId(authorized[0].telegram_user_id);
       }
     });
   }, []);
 
   // Load chats when account changes
   useEffect(() => {
-    if (!selectedAccountId) return;
+    if (!selectedTgUserId) return;
     setLoadingChats(true);
     setSelectedChat(null);
     setMessages([]);
-    api.listChats(selectedAccountId)
+    api.listChats(selectedTgUserId)
       .then(setChats)
       .catch(console.error)
       .finally(() => setLoadingChats(false));
-  }, [selectedAccountId]);
+  }, [selectedTgUserId]);
 
   // Load messages when chat changes
   useEffect(() => {
-    if (!selectedAccountId || !selectedChat) return;
+    if (!selectedTgUserId || !selectedChat) return;
     setLoadingMessages(true);
-    api.listMessages(selectedAccountId, selectedChat.id, 100)
+    api.listMessages(selectedTgUserId, selectedChat.telegram_chat_id, 100)
       .then((msgs) => {
         setMessages(msgs.reverse()); // oldest first
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
       })
       .catch(console.error)
       .finally(() => setLoadingMessages(false));
-  }, [selectedAccountId, selectedChat?.id]);
+  }, [selectedTgUserId, selectedChat?.telegram_chat_id]);
 
   const handleSync = async () => {
-    if (!selectedAccountId || syncing) return;
+    if (!selectedTgUserId || syncing) return;
     setSyncing(true);
     try {
-      const result = await api.syncChats(selectedAccountId);
+      const result = await api.syncChats(selectedTgUserId);
       setChats(result);
     } catch (err) {
       alert(err.message);
@@ -93,13 +93,13 @@ export default function ChatsPage() {
 
   const handleSend = async (e) => {
     e.preventDefault();
-    if (!newMessage.trim() || !selectedAccountId || !selectedChat || sending) return;
+    if (!newMessage.trim() || !selectedTgUserId || !selectedChat || sending) return;
     setSending(true);
     try {
-      await api.sendMessage(selectedAccountId, selectedChat.id, newMessage.trim());
+      await api.sendMessage(selectedTgUserId, selectedChat.telegram_chat_id, newMessage.trim());
       setNewMessage('');
       // Refresh messages
-      const msgs = await api.listMessages(selectedAccountId, selectedChat.id, 100);
+      const msgs = await api.listMessages(selectedTgUserId, selectedChat.telegram_chat_id, 100);
       setMessages(msgs.reverse());
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     } catch (err) {
@@ -110,21 +110,21 @@ export default function ChatsPage() {
   };
 
   const handleJoinChannel = async () => {
-    if (!joinInput.trim() || !selectedAccountId || joiningChannel) return;
+    if (!joinInput.trim() || !selectedTgUserId || joiningChannel) return;
     setJoiningChannel(true);
     try {
-      const result = await api.joinChannel(selectedAccountId, joinInput.trim());
+      const result = await api.joinChannel(selectedTgUserId, joinInput.trim());
       setJoinInput('');
       alert('Successfully joined the channel!');
       
       // Reload chat list
       setLoadingChats(true);
-      const updatedChats = await api.listChats(selectedAccountId);
+      const updatedChats = await api.listChats(selectedTgUserId);
       setChats(updatedChats);
       
-      // If a chat_id was returned, auto-select it!
-      if (result.chat_id) {
-        const joinedChat = updatedChats.find(c => c.id === result.chat_id);
+      // If a telegram_chat_id was returned, auto-select it!
+      if (result.telegram_chat_id) {
+        const joinedChat = updatedChats.find(c => c.telegram_chat_id === result.telegram_chat_id);
         if (joinedChat) {
           setSelectedChat(joinedChat);
         }
@@ -168,30 +168,30 @@ export default function ChatsPage() {
         <div className="flex items-center gap-3">
           {/* Account selector */}
           <select
-            value={selectedAccountId || ''}
-            onChange={(e) => setSelectedAccountId(Number(e.target.value))}
+            value={selectedTgUserId || ''}
+            onChange={(e) => setSelectedTgUserId(Number(e.target.value))}
             className="input-field text-sm w-48"
           >
             {accounts.map((acc) => (
-              <option key={acc.id} value={acc.id}>
+              <option key={acc.telegram_user_id} value={acc.telegram_user_id}>
                 {acc.display_name || acc.phone}
               </option>
             ))}
           </select>
 
-          {selectedAccountId && (
+          {selectedTgUserId && (
             <button
               onClick={async () => {
                 if (!confirm('Delete this Telegram account and all its cached data? This action is permanent.')) return;
                 try {
-                  await api.deleteAccount(selectedAccountId);
+                  await api.deleteAccount(selectedTgUserId);
                   const accs = await api.listAccounts();
                   const authorized = accs.filter((a) => a.status === 'authorized');
                   setAccounts(authorized);
                   if (authorized.length > 0) {
-                    setSelectedAccountId(authorized[0].id);
+                    setSelectedTgUserId(authorized[0].telegram_user_id);
                   } else {
-                    setSelectedAccountId(null);
+                    setSelectedTgUserId(null);
                     setChats([]);
                     setSelectedChat(null);
                     setMessages([]);
@@ -256,10 +256,10 @@ export default function ChatsPage() {
             <div className="overflow-y-auto flex-1">
               {chats.map((chat) => (
                 <button
-                   key={chat.id}
+                   key={chat.telegram_chat_id}
                   onClick={() => setSelectedChat(chat)}
                   className={`w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-white/[0.03] transition-colors border-b border-slate-800/30 ${
-                    selectedChat?.id === chat.id ? 'bg-brand-500/10 border-l-2 border-l-brand-500' : ''
+                    selectedChat?.telegram_chat_id === chat.telegram_chat_id ? 'bg-brand-500/10 border-l-2 border-l-brand-500' : ''
                   }`}
                 >
                   <div className="w-10 h-10 rounded-xl bg-slate-800/50 border border-slate-700/30 flex items-center justify-center text-slate-400 flex-shrink-0">
