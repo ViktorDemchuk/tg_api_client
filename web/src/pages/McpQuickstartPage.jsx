@@ -23,22 +23,22 @@ export default function McpQuickstartPage() {
   const mcpTools = [
     {
       name: 'list_telegram_accounts',
-      desc: 'Retrieve list of all authorized Telegram accounts owned by the user.',
+      desc: 'Retrieve list of all authorized Telegram accounts owned by the user. Returns telegram_user_id used as identifier in all other tools.',
       params: {}
     },
     {
       name: 'list_chats',
       desc: 'List dialogs/chats (groups, channels, users) for a specific Telegram account.',
       params: {
-        account_id: { type: 'integer', desc: 'Telegram account ID' }
+        tg_user_id: { type: 'integer', desc: 'Telegram user ID (from list_telegram_accounts)' }
       }
     },
     {
       name: 'get_recent_messages',
       desc: 'Get cached recent messages from a channel or chat.',
       params: {
-        account_id: { type: 'integer', desc: 'Telegram account ID' },
-        chat_id: { type: 'integer', desc: 'Chat local ID' },
+        tg_user_id: { type: 'integer', desc: 'Telegram user ID' },
+        tg_chat_id: { type: 'integer', desc: 'Telegram chat ID (from list_chats)' },
         limit: { type: 'integer', desc: 'Optional: Number of messages to return (default: 20)' }
       }
     },
@@ -46,8 +46,8 @@ export default function McpQuickstartPage() {
       name: 'send_telegram_message',
       desc: 'Send a new text message to a specific Telegram channel or chat.',
       params: {
-        account_id: { type: 'integer', desc: 'Telegram account ID' },
-        chat_id: { type: 'integer', desc: 'Chat local ID' },
+        tg_user_id: { type: 'integer', desc: 'Telegram user ID' },
+        tg_chat_id: { type: 'integer', desc: 'Telegram chat ID' },
         text: { type: 'string', desc: 'Message text to send' }
       }
     },
@@ -56,7 +56,7 @@ export default function McpQuickstartPage() {
       desc: 'Search all cached messages across accounts by keyword.',
       params: {
         query: { type: 'string', desc: 'Keyword query text' },
-        account_id: { type: 'integer', desc: 'Optional: limit to specific account' },
+        tg_user_id: { type: 'integer', desc: 'Optional: limit to specific account by Telegram user ID' },
         limit: { type: 'integer', desc: 'Optional: Maximum results (default: 50)' }
       }
     },
@@ -64,7 +64,7 @@ export default function McpQuickstartPage() {
       name: 'subscribe_to_channel',
       desc: 'Subscribe/join a new Telegram channel or group by username or link.',
       params: {
-        account_id: { type: 'integer', desc: 'Telegram account ID' },
+        tg_user_id: { type: 'integer', desc: 'Telegram user ID' },
         channel_url: { type: 'string', desc: 'Channel username (e.g. "@durov") or link' }
       }
     }

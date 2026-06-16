@@ -71,47 +71,52 @@ class ApiClient {
   addQrAccount() {
     return this.request('POST', '/telegram/accounts/qr');
   }
-  deleteAccount(id) {
-    return this.request('DELETE', `/telegram/accounts/${id}`);
+  // Post-auth operations use Telegram user ID
+  getAccount(tgUserId) {
+    return this.request('GET', `/telegram/accounts/${tgUserId}`);
   }
-  exportSession(accountId) {
-    return this.request('GET', `/telegram/accounts/${accountId}/session`);
+  deleteAccount(tgUserId) {
+    return this.request('DELETE', `/telegram/accounts/${tgUserId}`);
   }
-
-  sendCode(accountId) {
-    return this.request('POST', `/telegram/accounts/${accountId}/send-code`);
+  exportSession(tgUserId) {
+    return this.request('GET', `/telegram/accounts/${tgUserId}/session`);
   }
-  submitCode(accountId, code, password = null) {
-    return this.request('POST', `/telegram/accounts/${accountId}/submit-code`, { code, password });
-  }
-  qrRequest(accountId) {
-    return this.request('POST', `/telegram/accounts/${accountId}/qr-request`);
-  }
-  qrWait(accountId) {
-    return this.request('POST', `/telegram/accounts/${accountId}/qr-wait`);
-  }
-  qrSubmitPassword(accountId, password) {
-    return this.request('POST', `/telegram/accounts/${accountId}/qr-password`, { password });
-  }
-  disconnectAccount(accountId) {
-    return this.request('POST', `/telegram/accounts/${accountId}/disconnect`);
+  disconnectAccount(tgUserId) {
+    return this.request('POST', `/telegram/accounts/${tgUserId}/disconnect`);
   }
 
-  // Chats
-  listChats(accountId) {
-    return this.request('GET', `/telegram/accounts/${accountId}/chats`);
+  // Auth-flow operations use local IDs under /pending/
+  sendCode(localAccountId) {
+    return this.request('POST', `/telegram/pending/${localAccountId}/send-code`);
   }
-  syncChats(accountId) {
-    return this.request('POST', `/telegram/accounts/${accountId}/chats/sync`);
+  submitCode(localAccountId, code, password = null) {
+    return this.request('POST', `/telegram/pending/${localAccountId}/submit-code`, { code, password });
   }
-  listMessages(accountId, chatId, limit = 50) {
-    return this.request('GET', `/telegram/accounts/${accountId}/chats/${chatId}/messages?limit=${limit}`);
+  qrRequest(localAccountId) {
+    return this.request('POST', `/telegram/pending/${localAccountId}/qr-request`);
   }
-  sendMessage(accountId, chatId, text) {
-    return this.request('POST', `/telegram/accounts/${accountId}/chats/${chatId}/send`, { text });
+  qrWait(localAccountId) {
+    return this.request('POST', `/telegram/pending/${localAccountId}/qr-wait`);
   }
-  joinChannel(accountId, channelUrl) {
-    return this.request('POST', `/telegram/accounts/${accountId}/channels/join`, { channel_url: channelUrl });
+  qrSubmitPassword(localAccountId, password) {
+    return this.request('POST', `/telegram/pending/${localAccountId}/qr-password`, { password });
+  }
+
+  // Chats — all use Telegram IDs
+  listChats(tgUserId) {
+    return this.request('GET', `/telegram/accounts/${tgUserId}/chats`);
+  }
+  syncChats(tgUserId) {
+    return this.request('POST', `/telegram/accounts/${tgUserId}/chats/sync`);
+  }
+  listMessages(tgUserId, tgChatId, limit = 50) {
+    return this.request('GET', `/telegram/accounts/${tgUserId}/chats/${tgChatId}/messages?limit=${limit}`);
+  }
+  sendMessage(tgUserId, tgChatId, text) {
+    return this.request('POST', `/telegram/accounts/${tgUserId}/chats/${tgChatId}/send`, { text });
+  }
+  joinChannel(tgUserId, channelUrl) {
+    return this.request('POST', `/telegram/accounts/${tgUserId}/channels/join`, { channel_url: channelUrl });
   }
 
   // API Keys
@@ -125,7 +130,7 @@ class ApiClient {
     return this.request('DELETE', `/api-keys/${id}`);
   }
 
-  // Admin
+  // Admin (keeps local IDs)
   adminListUsers() {
     return this.request('GET', '/admin/users');
   }

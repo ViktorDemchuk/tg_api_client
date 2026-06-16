@@ -138,6 +138,32 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 - MCP SSE endpoint for agent integrations.
 - Admin panel for user/account management and audit logs.
 - Encrypted Telegram session storage.
+- **Telegram-native IDs** in all API paths (`telegram_user_id` for accounts, `telegram_chat_id` for chats). Paths remain stable across account re-creation.
+
+## API Routing
+
+API routes use Telegram-native IDs instead of local database IDs:
+
+| Route pattern | Description |
+| --- | --- |
+| `GET /telegram/accounts` | List all accounts |
+| `GET /telegram/accounts/{tg_user_id}` | Get account by Telegram user ID |
+| `GET /telegram/accounts/{tg_user_id}/chats` | List chats |
+| `GET /telegram/accounts/{tg_user_id}/chats/{tg_chat_id}/messages` | Get messages |
+| `POST /telegram/accounts/{tg_user_id}/chats/{tg_chat_id}/send` | Send message |
+| `POST /telegram/accounts/{tg_user_id}/channels/join` | Join channel by URL |
+
+Auth-flow endpoints (before the Telegram user ID is known) use local database IDs under a `/pending/` prefix:
+
+| Route pattern | Description |
+| --- | --- |
+| `POST /telegram/pending/{local_id}/send-code` | Request login code |
+| `POST /telegram/pending/{local_id}/submit-code` | Submit login code |
+| `POST /telegram/pending/{local_id}/qr-request` | Request QR code |
+| `POST /telegram/pending/{local_id}/qr-wait` | Wait for QR scan |
+| `POST /telegram/pending/{local_id}/qr-password` | Submit 2FA password |
+
+Admin endpoints keep local database IDs.
 
 ## API Authentication
 
@@ -159,11 +185,11 @@ Send the API key as `X-API-Key: tgc_...` when your MCP client supports custom he
 Available tools:
 
 - `list_telegram_accounts`
-- `list_chats`
-- `get_recent_messages`
-- `send_telegram_message`
-- `search_messages`
-- `subscribe_to_channel`
+- `list_chats` — params: `tg_user_id`
+- `get_recent_messages` — params: `tg_user_id`, `tg_chat_id`, `limit`, `since`
+- `send_telegram_message` — params: `tg_user_id`, `tg_chat_id`, `text`
+- `search_messages` — params: `query`, `tg_user_id` (optional), `limit`
+- `subscribe_to_channel` — params: `tg_user_id`, `channel_url`
 
 ## Development
 

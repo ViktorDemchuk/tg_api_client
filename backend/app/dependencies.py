@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import ApiKey, AuditLog, TelegramAccount, User
+from app.models import ApiKey, AuditLog, TelegramAccount, TelegramChat, User
 from app.security import decode_access_token, hash_api_key
 
 logger = logging.getLogger(__name__)
@@ -116,3 +116,54 @@ def audit_log(
     )
     db.add(entry)
     db.flush()
+
+
+def resolve_account_by_tg_id(
+    db: Session,
+    user: User,
+    tg_user_id: int,
+) -> TelegramAccount:
+    """Look up a Telegram account by its Telegram user ID, scoped to the current user."""
+    account = db.scalar(
+        select(TelegramAccount).where(
+            TelegramAccount.telegram_user_id == tg_user_id,
+            TelegramAccount.user_id == user.id,
+        )
+    )
+    if account is None:
+        raise HTTPException(status_code=404, detail="Telegram account not found")
+    if account.user_id != user.id and user.role.value != "admin":
+        raise HTTPException(status_code=403, detail="Access denied to this Telegram account")
+    return account
+
+
+def resolve_active_account_by_tg_id(
+    db: Session,
+    user: User,
+    tg_user_id: int,
+) -> TelegramAccount:
+    """Look up by Telegram user ID and ensure the account is active."""
+    account = resolve_account_by_tg_id(db, user, tg_user_id)
+    if not account.is_active:
+        raise HTTPException(
+            status_code=403,
+            detail="Account is in the greylist. Waiting for admin approval.",
+        )
+    return account
+
+
+def resolve_chat_by_tg_id(
+    db: Session,
+    account: TelegramAccount,
+    tg_chat_id: int,
+) -> TelegramChat:
+    """Look up a Telegram chat by its Telegram chat ID within a specific account."""
+    chat = db.scalar(
+        select(TelegramChat).where(
+            TelegramChat.telegram_chat_id == tg_chat_id,
+            TelegramChat.telegram_account_id == account.id,
+        )
+    )
+    if chat is None:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    return chat

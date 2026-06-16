@@ -121,6 +121,7 @@ class TelegramMessageRead(BaseModel):
 
     id: int
     chat_id: int
+    telegram_chat_id: int | None = None
     telegram_message_id: int
     sender_name: str | None = None
     sender_id: int | None = None
@@ -219,5 +220,5 @@ class AdminDisableRequest(BaseModel):
 
 class MessageSearchRequest(BaseModel):
     query: str = Field(min_length=1, max_length=2000)
-    account_id: int | None = None
+    telegram_user_id: int | None = None
     limit: int = Field(default=50, ge=1, le=200)

@@ -64,6 +64,7 @@ app.add_middleware(
 # ── Routers ──
 app.include_router(auth.router)
 app.include_router(telegram.router)
+app.include_router(telegram.pending_router)
 app.include_router(chats.router)
 app.include_router(api_keys.router)
 app.include_router(admin.router)

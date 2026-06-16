@@ -7,7 +7,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies import audit_log, get_current_user, verify_account_ownership, verify_active_account
+from app.dependencies import (
+    audit_log,
+    get_current_user,
+    resolve_account_by_tg_id,
+    resolve_active_account_by_tg_id,
+    resolve_chat_by_tg_id,
+)
 from app.models import (
     TelegramChat,
     TelegramCommand,
@@ -18,7 +24,7 @@ from app.models import (
 from app.schemas import SendMessageRequest, SendMessageResult, TelegramChatRead, TelegramMessageRead, JoinChannelRequest
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/telegram/accounts/{account_id}", tags=["chats"])
+router = APIRouter(prefix="/telegram/accounts/{tg_user_id}", tags=["chats"])
 
 
 async def _run_command(
@@ -56,15 +62,15 @@ async def _run_command(
 
 @router.get("/chats", response_model=list[TelegramChatRead])
 def list_chats(
-    account_id: int,
+    tg_user_id: int,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[TelegramChatRead]:
     """List cached chats for a Telegram account."""
-    verify_account_ownership(db, user, account_id)
+    account = resolve_account_by_tg_id(db, user, tg_user_id)
     chats = list(db.scalars(
         select(TelegramChat)
-        .where(TelegramChat.telegram_account_id == account_id)
+        .where(TelegramChat.telegram_account_id == account.id)
         .order_by(TelegramChat.last_message_date.desc().nulls_last())
     ))
     return [TelegramChatRead.model_validate(c) for c in chats]
@@ -72,27 +78,27 @@ def list_chats(
 
 @router.post("/chats/sync", response_model=list[TelegramChatRead])
 async def sync_chats(
-    account_id: int,
+    tg_user_id: int,
     request: Request,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[TelegramChatRead]:
     """Force sync chat list from Telegram."""
-    verify_active_account(db, user, account_id)
+    account = resolve_active_account_by_tg_id(db, user, tg_user_id)
 
     audit_log(
         db, user.id, "telegram.sync_chats",
-        target_type="telegram_account", target_id=str(account_id),
+        target_type="telegram_account", target_id=str(account.id),
         ip_address=request.client.host if request.client else None,
     )
     db.commit()
 
-    await _run_command(db, account_id, "sync_chats", timeout_seconds=90)
+    await _run_command(db, account.id, "sync_chats", timeout_seconds=90)
 
     # Re-fetch from DB after sync
     chats = list(db.scalars(
         select(TelegramChat)
-        .where(TelegramChat.telegram_account_id == account_id)
+        .where(TelegramChat.telegram_account_id == account.id)
         .order_by(TelegramChat.last_message_date.desc().nulls_last())
     ))
     return [TelegramChatRead.model_validate(c) for c in chats]
@@ -103,10 +109,10 @@ async def sync_chats(
 # ═══════════════════════════════════════════════════════════
 
 
-@router.get("/chats/{chat_id}/messages", response_model=list[TelegramMessageRead])
+@router.get("/chats/{tg_chat_id}/messages", response_model=list[TelegramMessageRead])
 def list_messages(
-    account_id: int,
-    chat_id: int,
+    tg_user_id: int,
+    tg_chat_id: int,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     since: datetime | None = Query(default=None, description="Only fetch messages newer than this datetime"),
@@ -114,14 +120,10 @@ def list_messages(
     db: Session = Depends(get_db),
 ) -> list[TelegramMessageRead]:
     """Get cached messages from a chat."""
-    verify_account_ownership(db, user, account_id)
+    account = resolve_account_by_tg_id(db, user, tg_user_id)
+    chat = resolve_chat_by_tg_id(db, account, tg_chat_id)
 
-    # Verify chat belongs to this account
-    chat = db.get(TelegramChat, chat_id)
-    if not chat or chat.telegram_account_id != account_id:
-        raise HTTPException(status_code=404, detail="Chat not found")
-
-    query = select(TelegramMessage).where(TelegramMessage.chat_id == chat_id)
+    query = select(TelegramMessage).where(TelegramMessage.chat_id == chat.id)
     if since:
         query = query.where(TelegramMessage.message_date >= since)
     query = query.order_by(TelegramMessage.message_date.desc()).limit(limit).offset(offset)
@@ -130,32 +132,29 @@ def list_messages(
     return [TelegramMessageRead.model_validate(m) for m in messages]
 
 
-@router.post("/chats/{chat_id}/send", response_model=SendMessageResult)
+@router.post("/chats/{tg_chat_id}/send", response_model=SendMessageResult)
 async def send_message(
-    account_id: int,
-    chat_id: int,
+    tg_user_id: int,
+    tg_chat_id: int,
     payload: SendMessageRequest,
     request: Request,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> SendMessageResult:
     """Send a message to a chat via the Telegram account."""
-    verify_active_account(db, user, account_id)
-
-    chat = db.get(TelegramChat, chat_id)
-    if not chat or chat.telegram_account_id != account_id:
-        raise HTTPException(status_code=404, detail="Chat not found")
+    account = resolve_active_account_by_tg_id(db, user, tg_user_id)
+    chat = resolve_chat_by_tg_id(db, account, tg_chat_id)
 
     audit_log(
         db, user.id, "telegram.send_message",
-        target_type="telegram_chat", target_id=str(chat_id),
-        details={"account_id": account_id, "text_length": len(payload.text)},
+        target_type="telegram_chat", target_id=str(chat.telegram_chat_id),
+        details={"account_tg_id": tg_user_id, "text_length": len(payload.text)},
         ip_address=request.client.host if request.client else None,
     )
     db.commit()
 
     result = await _run_command(
-        db, account_id, "send_message",
+        db, account.id, "send_message",
         {"telegram_chat_id": chat.telegram_chat_id, "text": payload.text},
     )
     return SendMessageResult(
@@ -169,57 +168,53 @@ async def send_message(
 # ═══════════════════════════════════════════════════════════
 
 
-@router.post("/channels/{chat_id}/join")
+@router.post("/channels/{tg_chat_id}/join")
 async def join_channel(
-    account_id: int,
-    chat_id: int,
+    tg_user_id: int,
+    tg_chat_id: int,
     request: Request,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
     """Subscribe to a channel."""
-    verify_active_account(db, user, account_id)
-    chat = db.get(TelegramChat, chat_id)
-    if not chat or chat.telegram_account_id != account_id:
-        raise HTTPException(status_code=404, detail="Chat not found")
+    account = resolve_active_account_by_tg_id(db, user, tg_user_id)
+    chat = resolve_chat_by_tg_id(db, account, tg_chat_id)
 
     audit_log(
         db, user.id, "telegram.join_channel",
-        target_type="telegram_chat", target_id=str(chat_id),
+        target_type="telegram_chat", target_id=str(chat.telegram_chat_id),
         ip_address=request.client.host if request.client else None,
     )
     db.commit()
 
     result = await _run_command(
-        db, account_id, "join_channel",
+        db, account.id, "join_channel",
         {"telegram_chat_id": chat.telegram_chat_id},
     )
     return {"status": result.get("status", "joined")}
 
 
-@router.post("/channels/{chat_id}/leave")
+@router.post("/channels/{tg_chat_id}/leave")
 async def leave_channel(
-    account_id: int,
-    chat_id: int,
+    tg_user_id: int,
+    tg_chat_id: int,
     request: Request,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
     """Unsubscribe from a channel."""
-    verify_active_account(db, user, account_id)
-    chat = db.get(TelegramChat, chat_id)
-    if not chat or chat.telegram_account_id != account_id:
-        raise HTTPException(status_code=404, detail="Chat not found")
+    account = resolve_active_account_by_tg_id(db, user, tg_user_id)
+    chat = resolve_chat_by_tg_id(db, account, tg_chat_id)
 
     audit_log(
         db, user.id, "telegram.leave_channel",
-        target_type="telegram_chat", target_id=str(chat_id),
+        target_type="telegram_chat", target_id=str(chat.telegram_chat_id),
         ip_address=request.client.host if request.client else None,
     )
     db.commit()
 
     result = await _run_command(
-        db, account_id, "leave_channel",
+        db, account.id, "leave_channel",
         {"telegram_chat_id": chat.telegram_chat_id},
     )
     return {"status": result.get("status", "left")}
@@ -227,25 +222,25 @@ async def leave_channel(
 
 @router.post("/channels/join")
 async def join_channel_by_url(
-    account_id: int,
+    tg_user_id: int,
     payload: JoinChannelRequest,
     request: Request,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
     """Subscribe to a new channel/group by username or link."""
-    verify_active_account(db, user, account_id)
+    account = resolve_active_account_by_tg_id(db, user, tg_user_id)
 
     audit_log(
         db, user.id, "telegram.join_channel_by_url",
-        target_type="telegram_account", target_id=str(account_id),
+        target_type="telegram_account", target_id=str(account.id),
         details={"channel_url": payload.channel_url},
         ip_address=request.client.host if request.client else None,
     )
     db.commit()
 
     result = await _run_command(
-        db, account_id, "join_channel",
+        db, account.id, "join_channel",
         {"channel_url": payload.channel_url},
     )
     return result

@@ -7,7 +7,14 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.dependencies import audit_log, get_current_user, verify_account_ownership, verify_active_account
+from app.dependencies import (
+    audit_log,
+    get_current_user,
+    resolve_account_by_tg_id,
+    resolve_active_account_by_tg_id,
+    verify_account_ownership,
+    verify_active_account,
+)
 from app.models import (
     TelegramAccount,
     TelegramAccountStatus,
@@ -28,6 +35,7 @@ from app.security import decrypt_session
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/telegram", tags=["telegram"])
+pending_router = APIRouter(prefix="/telegram/pending", tags=["telegram-auth"])
 
 
 # ═══════════════════════════════════════════════════════════
@@ -100,26 +108,26 @@ def add_account(
     return TelegramAccountRead.model_validate(account)
 
 
-@router.get("/accounts/{account_id}", response_model=TelegramAccountRead)
+@router.get("/accounts/{tg_user_id}", response_model=TelegramAccountRead)
 def get_account(
-    account_id: int,
+    tg_user_id: int,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> TelegramAccountRead:
-    """Get a specific Telegram account."""
-    account = verify_account_ownership(db, user, account_id)
+    """Get a specific Telegram account by its Telegram user ID."""
+    account = resolve_account_by_tg_id(db, user, tg_user_id)
     return TelegramAccountRead.model_validate(account)
 
 
-@router.delete("/accounts/{account_id}", status_code=204)
+@router.delete("/accounts/{tg_user_id}", status_code=204)
 def delete_account(
-    account_id: int,
+    tg_user_id: int,
     request: Request,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> None:
     """Remove a Telegram account and its session data."""
-    account = verify_account_ownership(db, user, account_id)
+    account = resolve_account_by_tg_id(db, user, tg_user_id)
     audit_log(
         db, user.id, "telegram.delete_account",
         target_type="telegram_account", target_id=str(account.id),
@@ -130,19 +138,19 @@ def delete_account(
     db.commit()
 
 
-@router.get("/accounts/{account_id}/status", response_model=TelegramAccountRead)
+@router.get("/accounts/{tg_user_id}/status", response_model=TelegramAccountRead)
 def account_status(
-    account_id: int,
+    tg_user_id: int,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> TelegramAccountRead:
     """Get connection status for a Telegram account."""
-    account = verify_account_ownership(db, user, account_id)
+    account = resolve_account_by_tg_id(db, user, tg_user_id)
     return TelegramAccountRead.model_validate(account)
 
 
 # ═══════════════════════════════════════════════════════════
-#  TELEGRAM AUTH FLOW (via command queue)
+#  TELEGRAM AUTH FLOW (via command queue, uses local IDs)
 # ═══════════════════════════════════════════════════════════
 
 
@@ -174,7 +182,7 @@ async def _run_telegram_command(
     raise HTTPException(status_code=504, detail="Telegram worker did not respond in time")
 
 
-@router.post("/accounts/{account_id}/send-code", response_model=TelegramAuthResult)
+@pending_router.post("/{account_id}/send-code", response_model=TelegramAuthResult)
 async def send_code(
     account_id: int,
     request: Request,
@@ -199,7 +207,7 @@ async def send_code(
     )
 
 
-@router.post("/accounts/{account_id}/submit-code", response_model=TelegramAuthResult)
+@pending_router.post("/{account_id}/submit-code", response_model=TelegramAuthResult)
 async def submit_code(
     account_id: int,
     payload: TelegramSubmitCodeRequest,
@@ -271,7 +279,7 @@ def add_account_qr(
     return TelegramAccountRead.model_validate(account)
 
 
-@router.post("/accounts/{account_id}/qr-request", response_model=TelegramAuthResult)
+@pending_router.post("/{account_id}/qr-request", response_model=TelegramAuthResult)
 async def qr_request(
     account_id: int,
     request: Request,
@@ -297,7 +305,7 @@ async def qr_request(
     )
 
 
-@router.post("/accounts/{account_id}/qr-wait", response_model=TelegramAuthResult)
+@pending_router.post("/{account_id}/qr-wait", response_model=TelegramAuthResult)
 async def qr_wait(
     account_id: int,
     request: Request,
@@ -319,7 +327,7 @@ async def qr_wait(
     )
 
 
-@router.post("/accounts/{account_id}/qr-password", response_model=TelegramAuthResult)
+@pending_router.post("/{account_id}/qr-password", response_model=TelegramAuthResult)
 async def qr_password(
     account_id: int,
     payload: TelegramSubmitPasswordRequest,
@@ -351,15 +359,20 @@ async def qr_password(
     )
 
 
-@router.post("/accounts/{account_id}/disconnect", response_model=TelegramAccountRead)
+# ═══════════════════════════════════════════════════════════
+#  POST-AUTH OPERATIONS (use Telegram user IDs)
+# ═══════════════════════════════════════════════════════════
+
+
+@router.post("/accounts/{tg_user_id}/disconnect", response_model=TelegramAccountRead)
 def disconnect_account(
-    account_id: int,
+    tg_user_id: int,
     request: Request,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> TelegramAccountRead:
     """Disconnect a Telegram account (clear session, mark as disconnected)."""
-    account = verify_active_account(db, user, account_id)
+    account = resolve_active_account_by_tg_id(db, user, tg_user_id)
     account.status = TelegramAccountStatus.disconnected
     if account.session:
         account.session.encrypted_session = None
@@ -375,15 +388,15 @@ def disconnect_account(
     return TelegramAccountRead.model_validate(account)
 
 
-@router.get("/accounts/{account_id}/session", response_model=TelegramSessionExport)
+@router.get("/accounts/{tg_user_id}/session", response_model=TelegramSessionExport)
 def export_session(
-    account_id: int,
+    tg_user_id: int,
     request: Request,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> TelegramSessionExport:
     """Export the decrypted Telegram session string for an account."""
-    account = verify_account_ownership(db, user, account_id)
+    account = resolve_account_by_tg_id(db, user, tg_user_id)
 
     session = db.scalar(
         select(TelegramSession).where(TelegramSession.telegram_account_id == account.id)

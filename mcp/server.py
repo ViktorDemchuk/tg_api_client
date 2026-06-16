@@ -40,7 +40,7 @@ sessions: dict[str, McpSession] = {}
 MCP_TOOLS = [
     {
         "name": "list_telegram_accounts",
-        "description": "List connected Telegram accounts for the authenticated user.",
+        "description": "List connected Telegram accounts for the authenticated user. Returns account details including telegram_user_id which is used as the identifier in all other tools.",
         "inputSchema": {
             "type": "object",
             "properties": {},
@@ -52,12 +52,12 @@ MCP_TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "account_id": {
+                "tg_user_id": {
                     "type": "integer",
-                    "description": "Telegram account ID",
+                    "description": "Telegram user ID (from list_telegram_accounts, field telegram_user_id)",
                 },
             },
-            "required": ["account_id"],
+            "required": ["tg_user_id"],
         },
     },
     {
@@ -66,13 +66,13 @@ MCP_TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "account_id": {
+                "tg_user_id": {
                     "type": "integer",
-                    "description": "Telegram account ID",
+                    "description": "Telegram user ID (from list_telegram_accounts)",
                 },
-                "chat_id": {
+                "tg_chat_id": {
                     "type": "integer",
-                    "description": "Chat ID (from list_chats)",
+                    "description": "Telegram chat ID (from list_chats, field telegram_chat_id)",
                 },
                 "limit": {
                     "type": "integer",
@@ -84,7 +84,7 @@ MCP_TOOLS = [
                     "description": "Optional ISO 8601 datetime string (e.g. 2026-06-01T12:00:00Z). Only fetch messages newer than this.",
                 },
             },
-            "required": ["account_id", "chat_id"],
+            "required": ["tg_user_id", "tg_chat_id"],
         },
     },
     {
@@ -93,20 +93,20 @@ MCP_TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "account_id": {
+                "tg_user_id": {
                     "type": "integer",
-                    "description": "Telegram account ID",
+                    "description": "Telegram user ID (from list_telegram_accounts)",
                 },
-                "chat_id": {
+                "tg_chat_id": {
                     "type": "integer",
-                    "description": "Chat ID (from list_chats)",
+                    "description": "Telegram chat ID (from list_chats)",
                 },
                 "text": {
                     "type": "string",
                     "description": "Message text to send",
                 },
             },
-            "required": ["account_id", "chat_id", "text"],
+            "required": ["tg_user_id", "tg_chat_id", "text"],
         },
     },
     {
@@ -119,9 +119,9 @@ MCP_TOOLS = [
                     "type": "string",
                     "description": "Search query text",
                 },
-                "account_id": {
+                "tg_user_id": {
                     "type": "integer",
-                    "description": "Optional: limit to specific account",
+                    "description": "Optional: limit to specific account by Telegram user ID",
                 },
                 "limit": {
                     "type": "integer",
@@ -138,16 +138,16 @@ MCP_TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "account_id": {
+                "tg_user_id": {
                     "type": "integer",
-                    "description": "Telegram account ID",
+                    "description": "Telegram user ID (from list_telegram_accounts)",
                 },
                 "channel_url": {
                     "type": "string",
                     "description": "Channel username (e.g. '@durov') or invitation link (e.g. 't.me/durov')",
                 },
             },
-            "required": ["account_id", "channel_url"],
+            "required": ["tg_user_id", "channel_url"],
         },
     },
 ]
@@ -180,16 +180,16 @@ async def handle_tool_call(name: str, arguments: dict, api_key: str) -> str:
             return json.dumps(result, indent=2, default=str)
 
         if name == "list_chats":
-            account_id = arguments["account_id"]
-            result = await call_backend("GET", f"/telegram/accounts/{account_id}/chats", api_key)
+            tg_user_id = arguments["tg_user_id"]
+            result = await call_backend("GET", f"/telegram/accounts/{tg_user_id}/chats", api_key)
             return json.dumps(result, indent=2, default=str)
 
         if name == "get_recent_messages":
-            account_id = arguments["account_id"]
-            chat_id = arguments["chat_id"]
+            tg_user_id = arguments["tg_user_id"]
+            tg_chat_id = arguments["tg_chat_id"]
             limit = arguments.get("limit", 20)
             since = arguments.get("since")
-            path = f"/telegram/accounts/{account_id}/chats/{chat_id}/messages?limit={limit}"
+            path = f"/telegram/accounts/{tg_user_id}/chats/{tg_chat_id}/messages?limit={limit}"
             if since:
                 import urllib.parse
                 path += f"&since={urllib.parse.quote(since)}"
@@ -197,22 +197,22 @@ async def handle_tool_call(name: str, arguments: dict, api_key: str) -> str:
             return json.dumps(result, indent=2, default=str)
 
         if name == "send_telegram_message":
-            account_id = arguments["account_id"]
-            chat_id = arguments["chat_id"]
+            tg_user_id = arguments["tg_user_id"]
+            tg_chat_id = arguments["tg_chat_id"]
             result = await call_backend(
                 "POST",
-                f"/telegram/accounts/{account_id}/chats/{chat_id}/send",
+                f"/telegram/accounts/{tg_user_id}/chats/{tg_chat_id}/send",
                 api_key,
                 body={"text": arguments["text"]},
             )
             return json.dumps(result, indent=2, default=str)
 
         if name == "subscribe_to_channel":
-            account_id = arguments["account_id"]
+            tg_user_id = arguments["tg_user_id"]
             channel_url = arguments["channel_url"]
             result = await call_backend(
                 "POST",
-                f"/telegram/accounts/{account_id}/channels/join",
+                f"/telegram/accounts/{tg_user_id}/channels/join",
                 api_key,
                 body={"channel_url": channel_url},
             )
@@ -221,17 +221,17 @@ async def handle_tool_call(name: str, arguments: dict, api_key: str) -> str:
         if name == "search_messages":
             # Search across all cached messages
             query = arguments["query"]
-            account_id = arguments.get("account_id")
+            tg_user_id = arguments.get("tg_user_id")
             limit = arguments.get("limit", 50)
 
-            # If account_id is given, search within that account's chats
-            if account_id:
-                chats = await call_backend("GET", f"/telegram/accounts/{account_id}/chats", api_key)
+            # If tg_user_id is given, search within that account's chats
+            if tg_user_id:
+                chats = await call_backend("GET", f"/telegram/accounts/{tg_user_id}/chats", api_key)
                 all_messages = []
                 for chat in chats[:20]:  # Limit to first 20 chats for performance
                     messages = await call_backend(
                         "GET",
-                        f"/telegram/accounts/{account_id}/chats/{chat['id']}/messages?limit=100",
+                        f"/telegram/accounts/{tg_user_id}/chats/{chat['telegram_chat_id']}/messages?limit=100",
                         api_key,
                     )
                     for msg in messages:
@@ -248,11 +248,14 @@ async def handle_tool_call(name: str, arguments: dict, api_key: str) -> str:
                 accounts = await call_backend("GET", "/telegram/accounts", api_key)
                 all_messages = []
                 for acc in accounts:
-                    chats = await call_backend("GET", f"/telegram/accounts/{acc['id']}/chats", api_key)
+                    acc_tg_id = acc.get("telegram_user_id")
+                    if not acc_tg_id:
+                        continue
+                    chats = await call_backend("GET", f"/telegram/accounts/{acc_tg_id}/chats", api_key)
                     for chat in chats[:10]:
                         messages = await call_backend(
                             "GET",
-                            f"/telegram/accounts/{acc['id']}/chats/{chat['id']}/messages?limit=50",
+                            f"/telegram/accounts/{acc_tg_id}/chats/{chat['telegram_chat_id']}/messages?limit=50",
                             api_key,
                         )
                         for msg in messages:

@@ -37,10 +37,10 @@ export default function AccountsPage() {
   const [qrModal, setQrModal] = useState(null); // { accountId, qrUrl, step, error }
   const [countdown, setCountdown] = useState(30);
 
-  const handleExportSession = async (accountId) => {
+  const handleExportSession = async (tgUserId) => {
     setActionLoading(true);
     try {
-      const data = await api.exportSession(accountId);
+      const data = await api.exportSession(tgUserId);
       setExportSessionData(data);
     } catch (err) {
       alert(err.message);
@@ -216,20 +216,20 @@ export default function AccountsPage() {
     }
   };
 
-  const handleDisconnect = async (accountId) => {
+  const handleDisconnect = async (tgUserId) => {
     if (!confirm('Disconnect this Telegram account?')) return;
     try {
-      await api.disconnectAccount(accountId);
+      await api.disconnectAccount(tgUserId);
       fetchAccounts();
     } catch (err) {
       alert(err.message);
     }
   };
 
-  const handleDelete = async (accountId) => {
+  const handleDelete = async (acc) => {
     if (!confirm('Delete this Telegram account and all its data?')) return;
     try {
-      await api.deleteAccount(accountId);
+      await api.deleteAccount(acc.telegram_user_id);
       fetchAccounts();
     } catch (err) {
       alert(err.message);
@@ -375,13 +375,13 @@ export default function AccountsPage() {
                   {acc.status === 'authorized' && (
                     <>
                       <button
-                        onClick={() => handleExportSession(acc.id)}
+                        onClick={() => handleExportSession(acc.telegram_user_id)}
                         className="btn-secondary text-xs flex items-center gap-1.5"
                       >
                         <Download className="w-3.5 h-3.5" /> Export Session
                       </button>
                       <button
-                        onClick={() => handleDisconnect(acc.id)}
+                        onClick={() => handleDisconnect(acc.telegram_user_id)}
                         disabled={!acc.is_active}
                         className="btn-secondary text-xs flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
                       >
@@ -389,12 +389,14 @@ export default function AccountsPage() {
                       </button>
                     </>
                   )}
-                  <button
-                    onClick={() => handleDelete(acc.id)}
-                    className="btn-danger text-xs flex items-center gap-1.5"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" /> Delete
-                  </button>
+                  {acc.telegram_user_id ? (
+                    <button
+                      onClick={() => handleDelete(acc)}
+                      className="btn-danger text-xs flex items-center gap-1.5"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Delete
+                    </button>
+                  ) : null}
                 </div>
               </div>
             );

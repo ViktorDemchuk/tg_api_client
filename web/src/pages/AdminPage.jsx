@@ -290,7 +290,8 @@ export default function AdminPage() {
                     <th>ID</th>
                     <th>Phone</th>
                     <th>Display Name</th>
-                    <th>User ID</th>
+                    <th>TG User ID</th>
+                    <th>Owner ID</th>
                     <th>Status</th>
                     <th>Active</th>
                     <th>Action</th>
@@ -302,6 +303,7 @@ export default function AdminPage() {
                       <td className="text-slate-500">{a.id}</td>
                       <td className="font-medium text-slate-200">{a.phone}</td>
                       <td className="text-slate-400">{a.display_name || '—'}</td>
+                      <td className="text-slate-500 font-mono text-xs">{a.telegram_user_id || '—'}</td>
                       <td className="text-slate-500">{a.user_id}</td>
                       <td>
                         <span className={`status-badge status-${a.status}`}>{a.status}</span>
